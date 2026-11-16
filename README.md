@@ -7,7 +7,7 @@ A user can then ask the robot what they are looking for, and the robot will infe
 
 ## System Diagram
 
-![System Diagram](system_diagram.png)
+![System Diagram](system_diagram.jpg)
 
 ## Mobile Robot
 
