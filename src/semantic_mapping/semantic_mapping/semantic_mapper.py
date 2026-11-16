@@ -27,7 +27,8 @@ MODEL = "Qwen/Qwen3-VL-2B-Instruct"
 
 PROMPT = """
 Identify up to 3 distinct stationary objects visible in this image that a
-person might want to navigate to.
+person might want to navigate to. Only objects you are confident in and that are clearly visible 
+should be considered.
 
 Return only a JSON array. For each object, provide a short description
 and a bounding box in this format:
@@ -35,12 +36,14 @@ and a bounding box in this format:
 [
   {
     "description": "description of object",
+    "confidence": 0-100,
     "bbox": [xmin, ymin, xmax, ymax]
   }
 ]
 
 Use integer coordinates on a 0 to 1000 scale, where (0, 0) is the
 top-left and (1000, 1000) is the bottom-right of the image.
+In the description, put a confidence value 0-100.
 Return [] if there are no identifiable objects.
 """
 
@@ -250,7 +253,9 @@ class SemanticMapper(Node):
             y2 = round(ymax * (height - 1) / 1000)
 
             region = depth_points[y1:y2, x1:x2]
+
             valid_mask = np.isfinite(region).all(axis=2)
+
             valid_points = region[valid_mask]
 
             if valid_points.size == 0:

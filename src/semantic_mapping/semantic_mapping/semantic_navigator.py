@@ -13,7 +13,9 @@ from geometry_msgs.msg import PoseStamped
 import json
 import requests
 from std_msgs.msg import String
-
+import queue
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 OLLAMA_URL = 'http://localhost:11434/api/chat'
 MODEL = 'qwen2.5:3b-instruct'
@@ -21,27 +23,28 @@ MODEL = 'qwen2.5:3b-instruct'
 
 SYSTEM = '''
         You are a guide robot. You get a user request and a JSON list of 
-        known objects in the environment, each with an id and a description. Reply with JSON only: 
+        known objects in the environment, each with an id and a description. 
         
+        Infer what the user means and Choose the object that best satisfies the user's request.
+
+        Reply with JSON only: 
         
         {
             "observation_id": "<id from the list>",
             "response": "<your response here>"
-            
-        } 
+        }
         
-        or 
+        or if nothing fits:
         
         {
             "observation_id": null,
             "response": "<your response here>"
         } 
-        
-        if nothing fits. 
 
-        Infer what the user means. If there are multiple possible matches, choose the most relevant one.
-        Never invent ids.
+        The response must describe the object associated with the selected ID.
+        Copy the ID exactly from that object's line. Do not invent an ID.
         
+        If there are multiple possible matches, choose the most relevant one.        
         '''
 
 
@@ -51,25 +54,90 @@ class SemanticNavigator(Node):
         super().__init__('semantic_navigator')
         self._action_client = ActionClient(self, NavigateThroughPoses, 'navigate_through_poses')
 
-        self.create_subscription(String, '/user_request', self.request_callback, 10)
+        # self.create_subscription(String, '/user_request', self.request_callback, 10)
 
                 
         self._tf_buffer = tf2_ros.Buffer()
         self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self)
 
-    def request_callback(self, msg):  
-        observation_id = self.select_object(msg.data)
-        if observation_id is None:
-            self.get_logger().warn("No valid observation selected")
-            return
-        record = self.load_observation(observation_id)
-        self.get_logger().info(f'Loaded observation: {record}')
-        goal = self.make_approach_pose(record['position'])
-        if goal is None:
-            self.get_logger().warn('TF not ready')
-            return
-        self.send_goal([goal])
+        self._request_queue = queue.Queue()
+        self._request_finished = threading.Event()
+        self._request_finished.set()
 
+        self._selector = ThreadPoolExecutor(max_workers=1)
+        self._selection_future = None
+
+        self._input_thread = threading.Thread(target=self.read_user_request, daemon=True)
+        self._input_thread.start()
+
+        self.create_timer(0.1, self.process_user_request)
+
+
+
+    # def request_callback(self, msg):  
+    #     observation_id = self.select_object(msg.data)
+    #     if observation_id is None:
+    #         self.get_logger().warn("No valid observation selected")
+    #         return
+    #     record = self.load_observation(observation_id)
+    #     self.get_logger().info(f'Loaded observation: {record}')
+    #     goal = self.make_approach_pose(record['position'])
+    #     if goal is None:
+    #         self.get_logger().warn('TF not ready')
+    #         return
+    #     self.send_goal([goal])
+
+
+    def read_user_request(self):
+        while True:
+            self._request_finished.wait()
+            request = input("What are you looking for? (or 'exit'): ")
+            if request.lower() == 'exit':
+                self._request_queue.put(None)
+                break
+            if not request:
+                continue
+            self._request_finished.clear()
+            self._request_queue.put(request)
+
+    def process_user_request(self):
+        if self._selection_future is not None:
+            if not self._selection_future.done():
+                return
+
+            future = self._selection_future
+            self._selection_future = None
+
+            observation_id = future.result()
+
+            if observation_id is None:
+                self.get_logger().warn("No matching observation found")
+                self._request_finished.set()
+                return
+
+            record = self.load_observation(observation_id)
+            self.get_logger().info(f'Loaded observation: {record}')
+
+            goal = self.make_approach_pose(record['position'])
+
+            if goal is None:
+                self._request_finished.set()
+                return
+            
+            self.send_goal([goal])
+            return
+
+        try:
+            request = self._request_queue.get_nowait()
+        except queue.Empty:
+            return
+
+        if request is None:
+            self.get_logger().info('Exiting.')
+            rclpy.shutdown()
+            return
+
+        self._selection_future = self._selector.submit(self.select_object, request)
 
     def select_object(self, request):
 
@@ -99,7 +167,7 @@ class SemanticNavigator(Node):
 
         response.raise_for_status()
         chosen = json.loads(response.json()['message']['content']).get('observation_id')
-        self.get_logger().info(f'Observation: {json.loads(response.json()["message"]["content"])}')
+        self.get_logger().info(f'{json.loads(response.json()["message"]["content"]).get('response')}')
         valid = {o['observation_id'] for o in observations}
         return chosen if chosen in valid else None  
 
@@ -146,7 +214,7 @@ class SemanticNavigator(Node):
             raise ValueError('Robot is too close to the object to choose an approach side')
 
         # distance away from object
-        standoff = 0.8
+        standoff = 1.0
         goal_x = object_x + standoff * dx / distance
         goal_y = object_y + standoff * dy / distance
 
@@ -185,6 +253,7 @@ class SemanticNavigator(Node):
         self._goal_handle = future.result()
         if not self._goal_handle.accepted:
             self.get_logger().warn('Goal Rejected')
+            self._request_finished.set() 
             return
 
         self.get_logger().info('Goal Accepted')
@@ -197,6 +266,8 @@ class SemanticNavigator(Node):
             self.get_logger().info('Reached destination!')
         else:
             self.get_logger().warn(f'Navigation ended with status code {status}')
+
+        self._request_finished.set() 
 
 
 
@@ -211,7 +282,6 @@ def main(args=None):
         pass
     finally:
         if node is not None:
-            node.shutdown_worker()
             node.destroy_node()
         rclpy.shutdown()
 

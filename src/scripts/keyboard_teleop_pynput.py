@@ -2,14 +2,17 @@
 """Keyboard teleoperation for RC car using pynput for continuous key detection."""
 import rclpy
 import time
+import threading
+
 from geometry_msgs.msg import Twist
 from pynput import keyboard
+
 
 class KeyboardTeleop:
     def __init__(self):
         rclpy.init()
         self.node = rclpy.create_node('keyboard_teleop')
-        self.pub = self.node.create_publisher(Twist, '/ackermann_steering_controller/reference_unstamped', 10)
+        self.pub = self.node.create_publisher(Twist, '/cmd_vel', 10)
 
         # Control parameters
         self.speed = 0.0
@@ -17,10 +20,11 @@ class KeyboardTeleop:
         self.max_speed = 1.0
         self.max_steer = 0.5
 
-        # Key states - tracks which keys are currently held down
+        # The pynput listener updates this set from a background thread.
         self.keys_pressed = set()
+        self._keys_lock = threading.Lock()
+        self._quit_requested = threading.Event()
 
-        # Create listener
         self.listener = keyboard.Listener(
             on_press=self.on_press,
             on_release=self.on_release
@@ -30,46 +34,50 @@ class KeyboardTeleop:
     def on_press(self, key):
         """Called when a key is pressed."""
         try:
-            # Try to get the character
-            self.keys_pressed.add(key.char)
+            char = key.char
         except AttributeError:
-            # Special keys (arrows, etc.)
-            self.keys_pressed.add(key)
+            char = None
+
+        if char is not None:
+            char = char.lower()
+            with self._keys_lock:
+                self.keys_pressed.add(char)
+            if char == 'q':
+                self._quit_requested.set()
+                return False
+        else:
+            with self._keys_lock:
+                self.keys_pressed.add(key)
 
     def on_release(self, key):
         """Called when a key is released."""
         try:
-            self.keys_pressed.discard(key.char)
+            char = key.char
         except AttributeError:
-            self.keys_pressed.discard(key)
-        
-        # Check for quit
-        try:
-            if key.char == 'q':
-                return False  # Stop listener
-        except AttributeError:
-            pass
+            char = None
+
+        with self._keys_lock:
+            self.keys_pressed.discard(char.lower() if char is not None else key)
 
     def update_controls(self):
         """Update speed and steering based on currently held keys."""
+        with self._keys_lock:
+            keys_pressed = self.keys_pressed.copy()
+
         self.speed = 0.0
         self.steer = 0.0
-        
-        # Check speed keys
-        if 'w' in self.keys_pressed or 'W' in self.keys_pressed or keyboard.Key.up in self.keys_pressed:
+
+        if 'w' in keys_pressed or keyboard.Key.up in keys_pressed:
             self.speed = self.max_speed
-        elif 's' in self.keys_pressed or 'S' in self.keys_pressed or keyboard.Key.down in self.keys_pressed:
+        elif 's' in keys_pressed or keyboard.Key.down in keys_pressed:
             self.speed = -self.max_speed
-        
-        # Check steering keys
-        # In Ackermann steering: positive angle = left, negative = right
-        if 'a' in self.keys_pressed or 'A' in self.keys_pressed or keyboard.Key.left in self.keys_pressed:
-            self.steer = -self.max_steer if self.speed >= 0 else self.max_steer  # Turn left (negative for Ackermann)
-        elif 'd' in self.keys_pressed or 'D' in self.keys_pressed or keyboard.Key.right in self.keys_pressed:
-            self.steer = self.max_steer if self.speed >= 0 else -self.max_steer   # Turn right (positive for Ackermann)
-        
-        # Emergency stop
-        if ' ' in self.keys_pressed:
+
+        if 'a' in keys_pressed or keyboard.Key.left in keys_pressed:
+            self.steer = self.max_steer
+        elif 'd' in keys_pressed or keyboard.Key.right in keys_pressed:
+            self.steer = -self.max_steer
+
+        if ' ' in keys_pressed or keyboard.Key.space in keys_pressed:
             self.speed = 0.0
             self.steer = 0.0
 
@@ -82,7 +90,11 @@ class KeyboardTeleop:
 
     def print_status(self):
         """Print current status."""
-        print(f"\rSpeed: {self.speed:5.2f} m/s | Steer: {self.steer:5.2f} rad", end='', flush=True)
+        print(
+            f"\rSpeed: {self.speed:5.2f} m/s | Turn: {self.steer:5.2f} rad/s",
+            end='',
+            flush=True,
+        )
 
     def run(self):
         """Main teleop loop."""
@@ -91,35 +103,34 @@ class KeyboardTeleop:
         print("╠════════════════════════════════════════╣")
         print("║  W / ↑     : forward                   ║")
         print("║  S / ↓     : reverse                   ║")
-        print("║  A / ←     : turn right                ║")
-        print("║  D / →     : turn left                 ║")
+        print("║  A / ←     : turn left                 ║")
+        print("║  D / →     : turn right                ║")
         print("║  SPACE     : emergency stop            ║")
         print("║  Q         : quit                      ║")
         print("╚════════════════════════════════════════╝")
-        print("Speed:  0.00 m/s | Steer:  0.00 rad")
+        print("Speed:  0.00 m/s | Turn:  0.00 rad/s")
 
         try:
-            while True:
+            while rclpy.ok() and not self._quit_requested.is_set():
                 self.update_controls()
                 self.publish_command()
                 self.print_status()
-                
-                # Check if user pressed 'q'
-                if 'q' in self.keys_pressed:
-                    break
-                
-                time.sleep(0.01)  # 100Hz loop
+
+                time.sleep(0.01)
 
         except KeyboardInterrupt:
             pass
         finally:
             self.listener.stop()
-            # Publish zero command on exit
             self.speed = 0.0
             self.steer = 0.0
-            self.publish_command()
-            rclpy.shutdown()
+            if rclpy.ok():
+                self.publish_command()
+            self.node.destroy_node()
+            if rclpy.ok():
+                rclpy.shutdown()
             print("\nTeleop stopped.")
+
 
 def main():
     try:
@@ -129,6 +140,7 @@ def main():
         print("\nError: pynput not installed!")
         print("Install it with: pip3 install pynput")
         return 1
+
 
 if __name__ == '__main__':
     main()

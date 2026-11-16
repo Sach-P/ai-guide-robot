@@ -66,7 +66,7 @@ def generate_launch_description():
     return LaunchDescription([
         declare_use_sim_time,
 
-        pit_detector,
+        #pit_detector,
 
         slam,
 
