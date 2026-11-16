@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'start_signal_detection'
+package_name = 'semantic_querying'
 
 setup(
     name=package_name,
@@ -24,7 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'start_signal_detector = start_signal_detection.start_signal_detector:main'
+            'semantic_querier = semantic_querying.semantic_querier:main'
         ],
     },
 )

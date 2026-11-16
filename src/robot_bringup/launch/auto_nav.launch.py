@@ -15,9 +15,6 @@ def generate_launch_description():
     pkg_desc = get_package_share_directory('rc_car_description')
     pkg_bringup = get_package_share_directory('robot_bringup')
 
-    # -------------------------
-    # Launch arguments
-    # -------------------------
     use_sim_time = LaunchConfiguration('use_sim_time')
     map_yaml = LaunchConfiguration('map')
 

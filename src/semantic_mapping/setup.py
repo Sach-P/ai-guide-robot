@@ -25,7 +25,6 @@ setup(
     entry_points={
         'console_scripts': [
             'semantic_mapper = semantic_mapping.semantic_mapper:main',
-            'semantic_navigator = semantic_mapping.semantic_navigator:main'
         ],
     },
 )

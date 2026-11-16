@@ -48,10 +48,10 @@ SYSTEM = '''
         '''
 
 
-class SemanticNavigator(Node):
+class SemanticQuerier(Node):
 
     def __init__(self):
-        super().__init__('semantic_navigator')
+        super().__init__('semantic_querier')
         self._action_client = ActionClient(self, NavigateThroughPoses, 'navigate_through_poses')
 
         # self.create_subscription(String, '/user_request', self.request_callback, 10)
@@ -276,7 +276,7 @@ def main(args=None):
     node = None
 
     try:
-        node = SemanticNavigator()
+        node = SemanticQuerier()
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass

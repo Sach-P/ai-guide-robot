@@ -99,7 +99,7 @@
     </inertial>
     <visual>
       <origin xyz="0 0 ${chassis_height/2}" rpy="0 0 0"/>
-      <geometry><box size="${chassis_length} 0.1 ${chassis_height}"/></geometry>
+      <geometry><box size="${chassis_length} ${chassis_width} ${chassis_height}"/></geometry>
       <material name="blue"/>
     </visual>
     <collision>
@@ -129,7 +129,7 @@
   <joint name="body_top_joint" type="fixed">
     <parent link="base_link"/>
     <child  link="body_top"/>
-    <origin xyz="${-chassis_length*0.05} 0 ${chassis_height}" rpy="0 0 0"/>
+    <origin xyz="0 0 ${chassis_height}" rpy="0 0 0"/>
   </joint>
 
   <!-- ============================================================
@@ -321,12 +321,12 @@
     </inertial> -->
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry><cylinder radius="0.0516" length="0.0717"/></geometry>
+      <geometry><cylinder radius="0.0516" length="0.0317"/></geometry>
       <material name="dark_grey"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry><cylinder radius="0.0516" length="0.0717"/></geometry>
+      <geometry><cylinder radius="0.0516" length="0.0317"/></geometry>
     </collision>
   </link>
   <joint name="lidar_joint" type="fixed">
