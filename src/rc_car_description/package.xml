@@ -21,12 +21,6 @@
   <depend>ros_gz_bridge</depend>
   <depend>gz_sim_vendor</depend>
 
-  <!-- ros2_control -->
-  <depend>ros2_control</depend>
-  <depend>ros2_controllers</depend>
-  <depend>gz_ros2_control</depend>
-  <depend>ackermann_steering_controller</depend>
-  <depend>joint_state_broadcaster</depend>
 
   <!-- TF / messages -->
   <depend>tf2_ros</depend>

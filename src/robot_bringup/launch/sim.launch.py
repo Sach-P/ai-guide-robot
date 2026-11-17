@@ -58,7 +58,7 @@ def launch_setup(context, *args, **kwargs):
 
     # ── 3. Spawn robot (delayed for Gazebo to start) ────────────
     spawn = TimerAction(
-        period=5.0,
+        period=7.0,
         actions=[Node(
             package="ros_gz_sim",
             executable="create",
@@ -107,19 +107,6 @@ def launch_setup(context, *args, **kwargs):
         ],
         output="screen",
         parameters=[{"use_sim_time": True}],
-    )
-
-    # ── 5. Controllers ─────────────────────────────────────────
-    joint_state_broadcaster = TimerAction(
-        period=3.5,
-        actions=[Node(
-            package="controller_manager",
-            executable="spawner",
-            arguments=["joint_state_broadcaster",
-                       "--controller-manager", "/controller_manager"],
-            output="screen",
-            parameters=[{"use_sim_time": True}],
-        )],
     )
 
     # ── 6. Static TF: map -> odom (only when SLAM is disabled) ──
@@ -225,7 +212,6 @@ def launch_setup(context, *args, **kwargs):
         gazebo,
         spawn,
         bridge,
-        joint_state_broadcaster,
         ekf_node,
         map_to_odom,
         cmd_vel_relay,

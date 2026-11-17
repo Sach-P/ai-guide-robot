@@ -87,22 +87,7 @@ Visualization Manager:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        front_left_steer_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        front_left_wheel_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        front_right_steer_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        front_right_wheel_link:
+        front_caster_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -112,17 +97,22 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
+        left_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
         lidar_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        rear_left_wheel_link:
+        rear_caster_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        rear_right_wheel_link:
+        right_wheel_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -156,15 +146,11 @@ Visualization Manager:
           Value: true
         depth_camera_optical_link:
           Value: true
-        front_left_steer_link:
-          Value: true
-        front_left_wheel_link:
-          Value: true
-        front_right_steer_link:
-          Value: true
-        front_right_wheel_link:
+        front_caster_link:
           Value: true
         imu_link:
+          Value: true
+        left_wheel_link:
           Value: true
         lidar_link:
           Value: true
@@ -172,9 +158,9 @@ Visualization Manager:
           Value: true
         odom:
           Value: true
-        rear_left_wheel_link:
+        rear_caster_link:
           Value: true
-        rear_right_wheel_link:
+        right_wheel_link:
           Value: true
       Marker Scale: 0.20000000298023224
       Name: TF
@@ -194,19 +180,17 @@ Visualization Manager:
                 depth_camera_link:
                   depth_camera_optical_link:
                     {}
-                front_left_steer_link:
-                  front_left_wheel_link:
-                    {}
-                front_right_steer_link:
-                  front_right_wheel_link:
-                    {}
+                front_caster_link:
+                  {}
                 imu_link:
+                  {}
+                left_wheel_link:
                   {}
                 lidar_link:
                   {}
-                rear_left_wheel_link:
+                rear_caster_link:
                   {}
-                rear_right_wheel_link:
+                right_wheel_link:
                   {}
       Update Interval: 0
       Value: true
@@ -297,7 +281,7 @@ Visualization Manager:
           Scale: 1
           Value: true
         Value: false
-      Enabled: true
+      Enabled: false
       Keep: 30
       Name: Odometry
       Position Tolerance: 0.10000000149011612
@@ -317,8 +301,8 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /ackermann_steering_controller/odometry
-      Value: true
+        Value: /model/rc_car/odometry
+      Value: false
     - Class: rviz_default_plugins/Image
       Enabled: true
       Max Value: 1
@@ -345,7 +329,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: RGB8
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Max Intensity: 4096
@@ -365,7 +349,7 @@ Visualization Manager:
         Value: /depth_camera/depth_image/points
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Alpha: 0.699999988079071
       Binary representation: false
       Binary threshold: 100
@@ -507,7 +491,7 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 435.9722595214844
+      Scale: 89.91378784179688
       Target Frame: base_link
       Value: TopDownOrtho (rviz_default_plugins)
       X: 0.1662348061800003
@@ -545,7 +529,7 @@ Window Geometry:
     collapsed: false
   Navigation 2:
     collapsed: false
-  QMainWindow State: 000000ff00000000fd000000020000000000000169000003d3fc0200000003fb000000100044006900730070006c006100790073010000003f00000125000000cc00fffffffb0000000a00560069006500770073010000016a000000a9000000a900fffffffb00000018004e0061007600690067006100740069006f006e002000320100000219000001f9000001f900ffffff0000000100000225000003d3fc0200000004fb0000000c00430061006d006500720061010000003f000001d60000001700fffffffb0000000a0049006d006100670065010000021b000001f70000001700fffffffb0000000c00430061006d006500720061010000003f000001dc0000000000000000fb0000000a0049006d0061006700650100000238000001da0000000000000000000003e6000003d300000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd000000020000000000000169000003d3fc0200000003fb000000100044006900730070006c006100790073010000003f00000125000000cc00fffffffb0000000a00560069006500770073010000016a000000a9000000a900fffffffb00000018004e0061007600690067006100740069006f006e002000320100000219000001f9000001e400ffffff0000000100000225000003d3fc0200000004fb0000000c00430061006d006500720061010000003f000001d60000001700fffffffb0000000a0049006d006100670065010000021b000001f70000001700fffffffb0000000c00430061006d006500720061010000003f000001dc0000000000000000fb0000000a0049006d0061006700650100000238000001da0000000000000000000003e6000003d300000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Views:
     collapsed: false
   Width: 1920

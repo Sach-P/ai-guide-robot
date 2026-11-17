@@ -17,8 +17,8 @@ class KeyboardTeleop:
         # Control parameters
         self.speed = 0.0
         self.steer = 0.0
-        self.max_speed = 1.0
-        self.max_steer = 0.5
+        self.max_speed = 3.0
+        self.max_steer = 1.0
 
         # The pynput listener updates this set from a background thread.
         self.keys_pressed = set()
