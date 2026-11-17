@@ -15,7 +15,7 @@ A user can then ask the robot what they are looking for, and the robot will infe
 The mobile robot uses:
 - [slam_toolbox](https://github.com/SteveMacenski/slam_toolbox) + 2D-LiDAR for SLAM 
 - [Nav2](https://docs.nav2.org/rolling/) for autonomous navigation
-- 2D-LiDAR + depth camera for obstacle detection.
+- 2D-LiDAR + depth camera for obstacle detection
 
 
 ## Setup
@@ -77,3 +77,11 @@ Running teleoperated control (useful for the mapping portion)
 python3 src/scripts/keyboard_teleop_pynput.py
 ```
 ## Demo
+
+## Future Work
+### Sim-to-real transfer
+Currently the project is in simulation, but a real world robot will be built.
+### Object segmentation model
+To get the objects position from the bounding box provided by the VLM, the depth camera’s point cloud is matched to the bounding box and the median is calculated.
+
+But this can cause issues when the median lands on a point behind the object of interest. A segmentation model is the more accurate approach but requires better hardware.
