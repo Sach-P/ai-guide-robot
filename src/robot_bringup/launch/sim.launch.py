@@ -82,7 +82,7 @@ def launch_setup(context, *args, **kwargs):
         arguments=[
             "/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",
             "/imu/data@sensor_msgs/msg/Imu[gz.msgs.IMU",
-            # keep Gazebo truth odom on its own topic to avoid colliding with controller odom
+            # Raw wheel odometry is an input to the EKF.
             "/model/rc_car/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry",
             "/model/rc_car/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist",
             # model pose mapping for direct rc_car chassis pose
@@ -133,22 +133,22 @@ def launch_setup(context, *args, **kwargs):
             'odom0': '/model/rc_car/odometry',
 
             'odom0_config': [
-                True,  True,  False,   # x, y, z
-                False, False, True,    # roll, pitch, yaw
-                True,  True,  False,   # vx, vy, vz
-                False, False, True,    # vroll, vpitch, vyaw
-                False, False, False
+                False, False, False,  # x, y, z
+                False, False, False,  # roll, pitch, yaw
+                True,  False, False,  # vx, vy, vz
+                False, False, False,  # vroll, vpitch, vyaw
+                False, False, False,  # ax, ay, az
             ],
             'odom0_queue_size': 10,
             'odom0_differential': False,
 
             'imu0': '/imu/data',
             'imu0_config': [
-                False, False, False,   # x, y, z
-                True,  True,  True,    # roll, pitch, yaw
-                False, False, False,   # vx, vy, vz
-                False, False, False,   # vroll, vpitch, vyaw
-                False, False, False
+                False, False, False,  # x, y, z
+                False, False, False,  # roll, pitch, yaw
+                False, False, False,  # vx, vy, vz
+                False, False, True,   # vroll, vpitch, vyaw
+                False, False, False,  # ax, ay, az
             ],
             'imu0_queue_size': 10,
             'imu0_differential': False,
@@ -160,7 +160,7 @@ def launch_setup(context, *args, **kwargs):
             'world_frame': world_frame,
 
             # OUTPUT
-            'publish_tf': False,
+            'publish_tf': True,
             'publish_acceleration': False,
 
             # SETTINGS
@@ -177,13 +177,6 @@ def launch_setup(context, *args, **kwargs):
             '/cmd_vel',
             '/model/rc_car/cmd_vel'
         ],
-        parameters=[{'use_sim_time': True}],
-    )
-
-    odom_tf_broadcaster = Node(
-        package='robot_bringup',
-        executable='broadcast_odom_tf.py',
-        output='screen',
         parameters=[{'use_sim_time': True}],
     )
 
@@ -215,7 +208,6 @@ def launch_setup(context, *args, **kwargs):
         ekf_node,
         map_to_odom,
         cmd_vel_relay,
-        odom_tf_broadcaster,
     ]
     if use_rviz == "true":
         nodes.append(rviz_node)

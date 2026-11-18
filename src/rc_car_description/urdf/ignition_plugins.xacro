@@ -97,6 +97,7 @@
       <always_on>true</always_on>
       <update_rate>100</update_rate>
       <visualize>false</visualize>
+      <gz_frame_id>imu_link</gz_frame_id>
       <topic>/imu/data</topic>
       <plugin filename="gz-sim8-imu-system"
               name="gz::sim::systems::Imu"/>

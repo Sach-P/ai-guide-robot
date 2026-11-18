@@ -7,7 +7,7 @@ bt_navigator:
     use_sim_time: true
     global_frame: map
     robot_base_frame: base_footprint
-    odom_topic: /model/rc_car/odometry
+    odom_topic: /odometry/filtered
 
 planner_server:
   ros__parameters:
@@ -28,7 +28,7 @@ controller_server:
     controller_frequency: 20.0
     min_x_velocity_threshold: 0.02
     min_theta_velocity_threshold: 0.04
-    odom_topic: /model/rc_car/odometry
+    odom_topic: /odometry/filtered
     controller_plugins: ["FollowPath"]
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
@@ -62,7 +62,7 @@ controller_server:
 #     min_velocity: [-0.35, 0.0, -1.0]
 #     max_accel: [1.8, 0.0, 2.0]
 #     max_decel: [-1.8, 0.0, -2.0]
-#     odom_topic: "/model/rc_car/odometry"
+#     odom_topic: "/odometry/filtered"
 #     odom_duration: 0.1
 #     deadband_velocity: [0.03, 0.0, 0.06]
 #     velocity_timeout: 1.0
