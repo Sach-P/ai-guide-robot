@@ -67,7 +67,7 @@ Running the semantic mapper to build object database:
 ros2 run semantic_mapping semantic_mapper
 ```
 
-Running the semantic querier to find object positions based on a givn prompt:
+Running the semantic querier to find object positions based on a given prompt:
 ```bash
 ros2 run semantic_querying semantic_querier
 ```

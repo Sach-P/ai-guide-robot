@@ -1,21 +1,20 @@
-import rclpy
-from rclpy.node import Node
-import rclpy.time
-import tf2_ros
-from rclpy.action import ActionClient
-from nav2_msgs.action import NavigateThroughPoses
-from geometry_msgs.msg import PoseStamped
-import sys
 import json
-from pathlib import Path
 import math
-from geometry_msgs.msg import PoseStamped
-import json
-import requests
-from std_msgs.msg import String
+from pathlib import Path
 import queue
-import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
+
+import rclpy
+import rclpy.time
+import requests
+import tf2_ros
+from action_msgs.msg import GoalStatus
+from geometry_msgs.msg import PoseStamped
+from nav2_msgs.action import NavigateThroughPoses
+from rclpy.action import ActionClient
+from rclpy.node import Node
+from std_msgs.msg import String
 
 OLLAMA_URL = 'http://localhost:11434/api/chat'
 MODEL = 'qwen2.5:3b-instruct'
@@ -54,51 +53,27 @@ class SemanticQuerier(Node):
         super().__init__('semantic_querier')
         self._action_client = ActionClient(self, NavigateThroughPoses, 'navigate_through_poses')
 
-        # self.create_subscription(String, '/user_request', self.request_callback, 10)
+        self._request_sub = self.create_subscription(String, '/user_request', self.request_callback, 10)
 
+        self._response_pub = self.create_publisher(String, '/robot_response', 10)
+        self._status_pub = self.create_publisher(String, '/robot_status', 10)
                 
         self._tf_buffer = tf2_ros.Buffer()
         self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self)
 
         self._request_queue = queue.Queue()
-        self._request_finished = threading.Event()
-        self._request_finished.set()
-
         self._selector = ThreadPoolExecutor(max_workers=1)
-        self._selection_future = None
 
-        self._input_thread = threading.Thread(target=self.read_user_request, daemon=True)
-        self._input_thread.start()
+        self._selection_future = None
+        self._request_active = False
+        self._pending_goal = None
+        self._server_deadline = None
 
         self.create_timer(0.1, self.process_user_request)
+        
 
-
-
-    # def request_callback(self, msg):  
-    #     observation_id = self.select_object(msg.data)
-    #     if observation_id is None:
-    #         self.get_logger().warn("No valid observation selected")
-    #         return
-    #     record = self.load_observation(observation_id)
-    #     self.get_logger().info(f'Loaded observation: {record}')
-    #     goal = self.make_approach_pose(record['position'])
-    #     if goal is None:
-    #         self.get_logger().warn('TF not ready')
-    #         return
-    #     self.send_goal([goal])
-
-
-    def read_user_request(self):
-        while True:
-            self._request_finished.wait()
-            request = input("What are you looking for? (or 'exit'): ")
-            if request.lower() == 'exit':
-                self._request_queue.put(None)
-                break
-            if not request:
-                continue
-            self._request_finished.clear()
-            self._request_queue.put(request)
+    def request_callback(self, msg):
+        self._request_queue.put(msg.data)
 
     def process_user_request(self):
         if self._selection_future is not None:
@@ -108,23 +83,46 @@ class SemanticQuerier(Node):
             future = self._selection_future
             self._selection_future = None
 
-            observation_id = future.result()
+            try:
+                observation_id, reply = future.result()
+            except Exception as exc:
+                self.fail_request(f'Object selection failed: {exc}')
+                return
 
             if observation_id is None:
-                self.get_logger().warn("No matching observation found")
-                self._request_finished.set()
+                self.send_response(reply)
+                self.finish_request()
                 return
 
-            record = self.load_observation(observation_id)
-            self.get_logger().info(f'Loaded observation: {record}')
-
-            goal = self.make_approach_pose(record['position'])
-
-            if goal is None:
-                self._request_finished.set()
+            try:
+                record = self.load_observation(observation_id)
+                goal = self.make_approach_pose(record['position'])
+            except (OSError, ValueError, KeyError, TypeError, IndexError,
+                    tf2_ros.LookupException, tf2_ros.ConnectivityException,
+                    tf2_ros.ExtrapolationException) as exc:
+                self.fail_request(f'Could not prepare the navigation goal: {exc}')
                 return
-            
-            self.send_goal([goal])
+
+            self.send_response(reply)
+            self._pending_goal = goal
+            self._server_deadline = time.monotonic() + 10.0
+            return
+
+        if self._pending_goal is not None:
+            if self._action_client.server_is_ready():
+                goal = self._pending_goal
+                self._pending_goal = None
+                goal.header.stamp = self.get_clock().now().to_msg()
+                try:
+                    self.send_goal([goal])
+                except Exception as exc:
+                    self.fail_request(f'Could not send the navigation goal: {exc}')
+            elif time.monotonic() >= self._server_deadline:
+                self._pending_goal = None
+                self.fail_request('Navigation is unavailable. Start Nav2 and try again.')
+            return
+
+        if self._request_active:
             return
 
         try:
@@ -132,11 +130,7 @@ class SemanticQuerier(Node):
         except queue.Empty:
             return
 
-        if request is None:
-            self.get_logger().info('Exiting.')
-            rclpy.shutdown()
-            return
-
+        self._request_active = True
         self._selection_future = self._selector.submit(self.select_object, request)
 
     def select_object(self, request):
@@ -166,10 +160,15 @@ class SemanticQuerier(Node):
         }, timeout=60)
 
         response.raise_for_status()
-        chosen = json.loads(response.json()['message']['content']).get('observation_id')
-        self.get_logger().info(f'{json.loads(response.json()["message"]["content"]).get('response')}')
+        result = json.loads(response.json()['message']['content'])
+        chosen = result['observation_id']
+        reply = result['response']
+        if not isinstance(reply, str) or not reply.strip():
+            raise ValueError('The language model returned an empty response')
         valid = {o['observation_id'] for o in observations}
-        return chosen if chosen in valid else None  
+        if chosen is not None and (not isinstance(chosen, str) or chosen not in valid):
+            raise ValueError('The language model selected an unknown observation')
+        return chosen, reply.strip()
 
 
     def load_observation(self, observation_id):
@@ -196,11 +195,7 @@ class SemanticQuerier(Node):
     def make_approach_pose(self, object_position):
         object_x, object_y = object_position[:2]
 
-        try:
-            tf_robot_map = self._tf_buffer.lookup_transform('map', 'base_footprint', rclpy.time.Time())
-        except (tf2_ros.LookupException, tf2_ros.ExtrapolationException):
-            self.get_logger().warning(f'Cannot get robot transform')
-            return
+        tf_robot_map = self._tf_buffer.lookup_transform('map', 'base_footprint', rclpy.time.Time())
 
         
         robot_x = tf_robot_map.transform.translation.x
@@ -236,7 +231,6 @@ class SemanticQuerier(Node):
         goal_msg = NavigateThroughPoses.Goal()
         goal_msg.poses = poses
 
-        self._action_client.wait_for_server()
         self._send_goal_future = self._action_client.send_goal_async(
             goal_msg,
             feedback_callback=self.feedback_callback
@@ -245,30 +239,55 @@ class SemanticQuerier(Node):
 
     def feedback_callback(self, feedback_msg):
         feedback = feedback_msg.feedback
-        self.get_logger().info(
-            f'Distance remaining: {feedback.distance_remaining:.2f} m | ', throttle_duration_sec=1.0)
-            # f'Number of recovery executions: {feedback.number_of_recoveries}'
+        self.get_logger().info(f'Distance remaining: {feedback.distance_remaining:.2f} m | ', throttle_duration_sec=1.0)
 
     def goal_response_callback(self, future):
-        self._goal_handle = future.result()
+        try:
+            self._goal_handle = future.result()
+        except Exception as exc:
+            self.fail_request(f'Could not send the navigation goal: {exc}')
+            return
         if not self._goal_handle.accepted:
-            self.get_logger().warn('Goal Rejected')
-            self._request_finished.set() 
+            self.fail_request('Nav2 rejected the navigation goal.')
             return
 
         self.get_logger().info('Goal Accepted')
-        self._get_result_future = self._goal_handle.get_result_async()
-        self._get_result_future.add_done_callback(self.get_result_callback)
+        try:
+            self._get_result_future = self._goal_handle.get_result_async()
+            self._get_result_future.add_done_callback(self.get_result_callback)
+        except Exception as exc:
+            self.fail_request(f'Could not request the navigation result: {exc}')
 
     def get_result_callback(self, future):
-        status = future.result().status
-        if status == 4:
+        try:
+            status = future.result().status
+        except Exception as exc:
+            self.fail_request(f'Could not get the navigation result: {exc}')
+            return
+        if status == GoalStatus.STATUS_SUCCEEDED:
             self.get_logger().info('Reached destination!')
+            self.send_response('Reached destination!')
         else:
             self.get_logger().warn(f'Navigation ended with status code {status}')
+            self.send_response(f'Navigation ended with status code {status}')
 
-        self._request_finished.set() 
+        self.finish_request()
 
+    def send_response(self, request):
+        msg = String()
+        msg.data = request
+        self._response_pub.publish(msg)
+
+    def finish_request(self):
+        self._request_active = False
+        msg = String()
+        msg.data = 'finished'
+        self._status_pub.publish(msg)
+
+    def fail_request(self, message):
+        self.get_logger().error(message)
+        self.send_response(message)
+        self.finish_request()
 
 
 def main(args=None):
@@ -282,8 +301,10 @@ def main(args=None):
         pass
     finally:
         if node is not None:
+            node._selector.shutdown(wait=True, cancel_futures=True)
             node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':
